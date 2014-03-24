@@ -1,0 +1,17 @@
+Makefile
+Makefile.in
+aclocal.m4
+config.h
+config.h.in
+config.log
+config.status
+doc/Makefile
+doc/Makefile.in
+src/.deps
+src/Makefile
+src/Makefile.in
+src/bcm2835.o
+src/libbcm2835.a
+src/test
+src/test.o
+stamp-h1
