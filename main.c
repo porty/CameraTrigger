@@ -29,6 +29,7 @@
 #include <errno.h>   // errno
 #include <stdlib.h>  // exit()
 #include <time.h>
+#include <sys/resource.h> // PRIO_PROCESS
 
 #include <fcntl.h>			//Used for UART
 #include <termios.h>		//Used for UART
@@ -52,7 +53,7 @@
 #define ANSI_COLOR_RESET   "\x1b[0m"
 
 int uart0_filestream = -1;
-int forkAndExecute (const char *path, char *const args[]) ;
+int forkAndExecute (const char *path, const char *const args[]) ;
 
 const char* picName = "temp.jpg";
 const char* txtName = "temp.txt";
@@ -103,7 +104,7 @@ bool handleMessage(mavlink_message_t* msg)
 	return false;
 } // end handle mavlink
 
-bool uartSetup(void)
+void uartSetup()
 {
 	//-------------------------
 	//----- SETUP USART 0 -----
@@ -174,6 +175,7 @@ uint8_t readUart(unsigned char rx_buffer[])
 			return rx_length;
 		}
 	}
+	return 0;
 }
 
 
@@ -193,7 +195,7 @@ void currnetTime(char buffer[])
   
 }
 
-void concat(char *s1, char *s2, char buffer[])
+void concat(const char *s1, const char *s2, char buffer[])
 {
     //in real code you would check for errors in malloc here
     strcpy(buffer, s1);
@@ -204,17 +206,15 @@ void concat(char *s1, char *s2, char buffer[])
 int main(int argc, char **argv)
 {
 	static uint8_t state;
-	static char dataBuffer[256];
-	static uint8_t n;
-	static bool waitForData = false;
 	static uint8_t cnt;
 	unsigned char rx_buffer[256];
 	//mavlink
 	mavlink_message_t msg;
 	mavlink_status_t status;
+	const timespec ONE_MILLISECOND = {0, 1000000};
 
 
-	char *const args[] = {"raspistill", "-o","temp.jpg", "-t","99999999", "-s", "-q", "20", NULL};
+	const char *const args[] = {"raspistill", "-o","temp.jpg", "-t","99999999", "-s", "-q", "20", NULL};
 	//"/opt/vc/bin/raspistill"
 	int pid = forkAndExecute("raspistill", args);
 	//clean up:
@@ -237,7 +237,6 @@ int main(int argc, char **argv)
 	state = WaitForTrigger;
     while (1)
     {
-		uint16_t i = 0;
         // Read some data
         uint8_t value = bcm2835_gpio_lev(PIN);
 		uint8_t serialNo = readUart(rx_buffer);
@@ -342,7 +341,7 @@ int main(int argc, char **argv)
 			default:
 			break; 
 		}
-		nanosleep((struct timespec[]){{0, 1000000}}, NULL);
+		nanosleep(&ONE_MILLISECOND, NULL);
 	}
 	kill(pid,SIGKILL);
     bcm2835_close();
@@ -353,16 +352,17 @@ int main(int argc, char **argv)
 		
 
 
-int forkAndExecute (const char *path, char *const args[]) {
+int forkAndExecute (const char * path, const char *const args[]) {
      pid_t  pid;
-     int    status;
+     // stupid execvp
+     char * * const non_const_args = (char * * const)args;
 
      if ((pid = fork()) < 0) {     /* fork a child process           */
           printf("*** ERROR: forking child process failed\n");
           return 0;
      }
      else if (pid == 0) {          /* for the child process:         */
-          if (execvp(path, args) < 0) {     /* execute the command  */
+          if (execvp(path, non_const_args) < 0) {     /* execute the command  */
                printf("*** ERROR: exec failed\n");
                return 0;
           }
